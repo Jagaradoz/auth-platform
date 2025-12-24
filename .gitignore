@@ -53,5 +53,4 @@ temp/
 *.sqlite
 *.sqlite3
 
-# Custom
 todo.md

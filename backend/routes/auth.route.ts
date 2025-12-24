@@ -1,10 +1,10 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { dbRun, dbGet } from "../utils/db";
+import { dbRun, dbGet, dbAll } from "../utils/db";
 import { authenticateToken, generateToken } from "../middleware/auth.middleware";
 import { loginLimiter, registerLimiter } from "../middleware/rateLimiter.middleware";
 import { registerSchema, loginSchema } from "../utils/validation";
-import { User } from "../types";
+import { User, Session } from "../types";
 import logger from "../utils/logger";
 
 const router = Router();
@@ -14,7 +14,7 @@ const router = Router();
 // @access  Public
 router.post("/register", registerLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
-    // Validate input with Zod
+    // Validate input
     const validation = registerSchema.safeParse(req.body);
     if (!validation.success) {
       const errorMessage = validation.error.issues[0].message;
@@ -58,7 +58,7 @@ router.post("/register", registerLimiter, async (req: Request, res: Response): P
 // @access  Public
 router.post("/login", loginLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
-    // Validate input with Zod
+    // Validate input
     const validation = loginSchema.safeParse(req.body);
     if (!validation.success) {
       const errorMessage = validation.error.issues[0].message;
@@ -85,13 +85,25 @@ router.post("/login", loginLimiter, async (req: Request, res: Response): Promise
       return;
     }
 
-    // Login user
+    // Create session
+    const device = (req.headers["x-device"] as string) || "Unknown";
+    const ip = req.ip || req.socket.remoteAddress || "Unknown";
+    const userAgent = req.headers["user-agent"] || "Unknown";
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+
+    const sessionResult = await dbRun(
+      "INSERT INTO sessions (user_id, device, ip, user_agent, expires_at) VALUES (?, ?, ?, ?, ?)",
+      [user.id, device, ip, userAgent, expiresAt],
+    );
+
+    // Generate token with session ID
     const token = generateToken({
       id: user.id,
       email: user.email,
+      sessionId: sessionResult.lastID,
     });
 
-    logger.info(`User logged in successfully: ${email}`);
+    logger.info(`User logged in successfully: ${email} (Session: ${sessionResult.lastID})`);
     res.json({
       message: "Logged in successfully",
       token,
@@ -123,6 +135,36 @@ router.post("/logout", authenticateToken, async (req: Request, res: Response): P
   } catch (error) {
     logger.error("Logout error:", error);
     res.status(500).json({ message: "Server error during logout" });
+  }
+});
+
+// @router  GET /api/auth/sessions
+// @desc    Get all active sessions for the authenticated user
+// @access  Private
+router.get("/sessions", authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    const sessions = await dbAll<Session>(
+      "SELECT id, device, ip, user_agent, created_at, expires_at FROM sessions WHERE user_id = ? AND expires_at > datetime('now')",
+      [userId],
+    );
+
+    logger.info(`User ${req.user?.email} fetched ${sessions.length} active sessions`);
+    res.json({
+      sessions: sessions.map((session) => ({
+        id: session.id,
+        device: session.device,
+        ip: session.ip,
+        userAgent: session.user_agent,
+        createdAt: session.created_at,
+        expiresAt: session.expires_at,
+        isCurrent: session.id === req.user?.sessionId,
+      })),
+    });
+  } catch (error) {
+    logger.error("Sessions fetch error:", error);
+    res.status(500).json({ message: "Server error fetching sessions" });
   }
 });
 
