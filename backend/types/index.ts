@@ -5,9 +5,20 @@ interface User {
   created_at: string;
 }
 
+interface Session {
+  id: number;
+  user_id: number;
+  device: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
 interface UserPayload {
   id: number;
   email: string;
+  sessionId?: number;
 }
 
 declare global {
@@ -19,4 +30,4 @@ declare global {
 }
 
 // Exports
-export { User, UserPayload };
+export { User, Session, UserPayload };
