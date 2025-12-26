@@ -1,29 +1,21 @@
-// Dotenv
 import "dotenv/config";
 
-// Packages
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import express, { Express } from "express";
 
-// Routes
-import authRoutes from "./routes/auth.route";
+import authRoutes from "../routes/auth.route";
+import { initializeDatabase } from "../config/db";
+import logger from "../config/logger";
+import "../types";
 
-// Utils
-import { initializeDatabase } from "./utils/db";
-import logger from "./utils/logger";
-
-// Types
-import "./types";
-
-// Constants
 const PORT: number = parseInt(process.env.PORT || "3000", 10);
-
-// Variables
 const app: Express = express();
 
-// Middleware
 app.use(helmet());
+app.use(express.json());
+app.use(cookieParser());
 app.use(
   cors({
     origin: process.env.FRONTEND_URL,
@@ -32,15 +24,11 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
-app.use(express.json());
 
-// Initialize database tables
 initializeDatabase();
 
-// Routes
 app.use("/api/auth", authRoutes);
 
-// Listening
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
 });

@@ -18,13 +18,4 @@ const registerLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-/** Test limiter: 3 requests per 30 seconds */
-const testLimiter = rateLimit({
-  windowMs: 30 * 1000,
-  max: 3,
-  message: { message: "Rate limit hit! Wait 30 seconds." },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-export { loginLimiter, registerLimiter, testLimiter };
+export { loginLimiter, registerLimiter };
