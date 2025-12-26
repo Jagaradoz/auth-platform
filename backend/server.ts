@@ -4,6 +4,7 @@ import "dotenv/config";
 // Packages
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import express, { Express } from "express";
 
 // Routes
@@ -33,6 +34,7 @@ app.use(
   }),
 );
 app.use(express.json());
+app.use(cookieParser());
 
 // Initialize database tables
 initializeDatabase();

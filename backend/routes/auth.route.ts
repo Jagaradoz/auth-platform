@@ -1,10 +1,16 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { dbRun, dbGet, dbAll } from "../utils/db";
-import { authenticateToken, generateToken } from "../middleware/auth.middleware";
+import {
+  authenticateToken,
+  generateToken,
+  generateRefreshToken,
+  hashToken,
+  REFRESH_TOKEN_EXPIRY_DAYS,
+} from "../middleware/auth.middleware";
 import { loginLimiter, registerLimiter } from "../middleware/rateLimiter.middleware";
 import { registerSchema, loginSchema } from "../utils/validation";
-import { User, Session } from "../types";
+import { User, Session, RefreshToken } from "../types";
 import logger from "../utils/logger";
 
 const router = Router();
@@ -96,17 +102,37 @@ router.post("/login", loginLimiter, async (req: Request, res: Response): Promise
       [user.id, device, ip, userAgent, expiresAt],
     );
 
-    // Generate token with session ID
-    const token = generateToken({
+    // Generate access token with session ID
+    const accessToken = generateToken({
       id: user.id,
       email: user.email,
       sessionId: sessionResult.lastID,
     });
 
+    // Generate and store refresh token
+    const refreshToken = generateRefreshToken();
+    const refreshTokenHash = hashToken(refreshToken);
+    const refreshExpiresAt = new Date(
+      Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    await dbRun(
+      "INSERT INTO refresh_tokens (user_id, token_hash, session_id, expires_at) VALUES (?, ?, ?, ?)",
+      [user.id, refreshTokenHash, sessionResult.lastID, refreshExpiresAt],
+    );
+
+    // Set refresh token as httpOnly cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    });
+
     logger.info(`User logged in successfully: ${email} (Session: ${sessionResult.lastID})`);
     res.json({
       message: "Logged in successfully",
-      token,
+      token: accessToken,
       user: {
         id: user.id,
         email: user.email,
@@ -165,6 +191,106 @@ router.get("/sessions", authenticateToken, async (req: Request, res: Response): 
   } catch (error) {
     logger.error("Sessions fetch error:", error);
     res.status(500).json({ message: "Server error fetching sessions" });
+  }
+});
+
+// @router  POST /api/auth/refresh
+// @desc    Exchange refresh token for new access token (with token rotation)
+// @access  Public (requires valid refresh token cookie)
+router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const refreshToken = req.cookies?.refreshToken;
+
+    if (!refreshToken) {
+      logger.warn("Refresh attempt without token");
+      res.status(401).json({ message: "Refresh token not provided" });
+      return;
+    }
+
+    // Hash the incoming token to compare with stored hash
+    const tokenHash = hashToken(refreshToken);
+
+    // Find the refresh token in database
+    const storedToken = await dbGet<RefreshToken>(
+      "SELECT * FROM refresh_tokens WHERE token_hash = ?",
+      [tokenHash],
+    );
+
+    if (!storedToken) {
+      logger.warn("Invalid refresh token attempted");
+      res.status(401).json({ message: "Invalid refresh token" });
+      return;
+    }
+
+    // Check if token is expired, then delete it
+    if (new Date(storedToken.expires_at) < new Date()) {
+      await dbRun("DELETE FROM refresh_tokens WHERE id = ?", [storedToken.id]);
+      logger.warn("Expired refresh token attempted");
+      res.status(401).json({ message: "Refresh token expired" });
+      return;
+    }
+
+    // Verify the session is still active
+    const session = await dbGet<Session>(
+      "SELECT * FROM sessions WHERE id = ? AND expires_at > datetime('now')",
+      [storedToken.session_id],
+    );
+
+    if (!session) {
+      // Session expired or invalidated, delete the refresh token
+      await dbRun("DELETE FROM refresh_tokens WHERE id = ?", [storedToken.id]);
+      logger.warn("Refresh token for expired session attempted");
+      res.status(401).json({ message: "Session expired" });
+      return;
+    }
+
+    // Get user info
+    const user = await dbGet<User>("SELECT * FROM users WHERE id = ?", [storedToken.user_id]);
+    if (!user) {
+      await dbRun("DELETE FROM refresh_tokens WHERE id = ?", [storedToken.id]);
+      logger.warn("Refresh token for non-existent user attempted");
+      res.status(401).json({ message: "User not found" });
+      return;
+    }
+
+    // Token rotation: Delete old refresh token
+    await dbRun("DELETE FROM refresh_tokens WHERE id = ?", [storedToken.id]);
+
+    // Generate new access token
+    const newAccessToken = generateToken({
+      id: user.id,
+      email: user.email,
+      sessionId: storedToken.session_id,
+    });
+
+    // Generate new refresh token (rotation)
+    const newRefreshToken = generateRefreshToken();
+    const newRefreshTokenHash = hashToken(newRefreshToken);
+    const newRefreshExpiresAt = new Date(
+      Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    await dbRun(
+      "INSERT INTO refresh_tokens (user_id, token_hash, session_id, expires_at) VALUES (?, ?, ?, ?)",
+      [user.id, newRefreshTokenHash, storedToken.session_id, newRefreshExpiresAt],
+    );
+
+    // Set new refresh token cookie
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    });
+
+    logger.info(`Token refreshed for user: ${user.email}`);
+    res.json({
+      message: "Token refreshed successfully",
+      token: newAccessToken,
+    });
+  } catch (error) {
+    logger.error("Token refresh error:", error);
+    res.status(500).json({ message: "Server error during token refresh" });
   }
 });
 

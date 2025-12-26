@@ -15,6 +15,15 @@ interface Session {
   expires_at: string;
 }
 
+interface RefreshToken {
+  id: number;
+  user_id: number;
+  token_hash: string;
+  session_id: number;
+  expires_at: string;
+  created_at: string;
+}
+
 interface UserPayload {
   id: number;
   email: string;
@@ -30,4 +39,4 @@ declare global {
 }
 
 // Exports
-export { User, Session, UserPayload };
+export { User, Session, RefreshToken, UserPayload };
