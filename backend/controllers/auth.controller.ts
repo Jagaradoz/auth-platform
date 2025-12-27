@@ -18,6 +18,14 @@ import {
   issueRefreshToken,
   clearRefreshTokenCookie,
 } from "../services/token.service";
+import {
+  createVerificationToken,
+  findVerificationTokenByHash,
+  hashVerificationToken,
+  deleteVerificationTokenById,
+  markUserAsVerified,
+} from "../services/verification.service";
+import { sendVerificationEmail } from "../services/email.service";
 import { registerSchema, loginSchema } from "../config/validation";
 import logger from "../config/logger";
 
@@ -52,9 +60,13 @@ const register = async (req: Request, res: Response): Promise<void> => {
     const passwordHash = await bcrypt.hash(password, salt);
     const userId = await createUser(email, passwordHash);
 
-    logger.info(`New user registered: ${email} (ID: ${userId})`);
+    // Generate verification token and send email
+    const verificationToken = await createVerificationToken(userId);
+    const emailSent = await sendVerificationEmail(email, verificationToken);
+
+    logger.info(`New user registered: ${email} (ID: ${userId}), Email sent: ${emailSent}`);
     res.status(201).json({
-      message: "User registered successfully",
+      message: "User registered successfully. Please check your email to verify your account.",
       userId,
     });
   } catch (error) {
@@ -285,4 +297,55 @@ const refresh = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export { register, login, logout, logoutAll, getSessions, refresh };
+// @route   GET /api/auth/verify/:token
+// @desc    Verify user email with token
+// @access  Public
+const verifyEmail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      res.status(400).json({ message: "Verification token is required" });
+      return;
+    }
+
+    // Hash the token and find in database
+    const tokenHash = hashVerificationToken(token);
+    const storedToken = await findVerificationTokenByHash(tokenHash);
+
+    if (!storedToken) {
+      logger.warn("Invalid verification token attempted");
+      res.status(400).json({ message: "Invalid or expired verification token" });
+      return;
+    }
+
+    // Check if token is expired
+    if (new Date(storedToken.expires_at) < new Date()) {
+      await deleteVerificationTokenById(storedToken.id);
+      logger.warn("Expired verification token attempted");
+      res.status(400).json({ message: "Verification token has expired" });
+      return;
+    }
+
+    // Get user to verify they exist
+    const user = await findUserById(storedToken.user_id);
+    if (!user) {
+      await deleteVerificationTokenById(storedToken.id);
+      logger.warn("Verification token for non-existent user");
+      res.status(400).json({ message: "User not found" });
+      return;
+    }
+
+    // Mark user as verified and delete token
+    await markUserAsVerified(storedToken.user_id);
+    await deleteVerificationTokenById(storedToken.id);
+
+    logger.info(`Email verified for user: ${user.email}`);
+    res.json({ message: "Email verified successfully. You can now log in." });
+  } catch (error) {
+    logger.error("Email verification error:", error);
+    res.status(500).json({ message: "Server error during email verification" });
+  }
+};
+
+export { register, login, logout, logoutAll, getSessions, refresh, verifyEmail };
