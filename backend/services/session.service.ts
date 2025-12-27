@@ -1,48 +1,57 @@
-import {
-  Session,
-  createSessionRecord,
-  findActiveSessionsByUserId,
-  deleteSessionById,
-  deleteSessionsByUserId,
-} from "../models/session.model";
+import { dbRun, dbGet, dbAll } from "../config/db";
+import { Session } from "../types";
 
-const SESSION_EXPIRY_DAYS = parseInt(process.env.SESSION_EXPIRY_DAYS || "7", 10);
-
-/** Create a new session for user */
-const createSession = async (
+/** Create a new session and return the session ID */
+const createSessionRecord = async (
   userId: number,
-  metadata: { device: string; ip: string; userAgent: string },
+  device: string,
+  ip: string,
+  userAgent: string,
+  expiresAt: string,
 ): Promise<number> => {
-  const expiresAt = new Date(Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const result = await dbRun(
+    "INSERT INTO sessions (user_id, device, ip, user_agent, expires_at) VALUES (?, ?, ?, ?, ?)",
+    [userId, device, ip, userAgent, expiresAt],
+  );
+  return result.lastID;
+};
 
-  return await createSessionRecord(
-    userId,
-    metadata.device,
-    metadata.ip,
-    metadata.userAgent,
-    expiresAt,
+/** Find session by ID */
+const findSessionById = async (id: number): Promise<Session | undefined> => {
+  return await dbGet<Session>("SELECT * FROM sessions WHERE id = ?", [id]);
+};
+
+/** Find active (non-expired) session by ID */
+const findActiveSessionById = async (id: number): Promise<Session | undefined> => {
+  return await dbGet<Session>(
+    "SELECT * FROM sessions WHERE id = ? AND expires_at > datetime('now')",
+    [id],
   );
 };
 
-/** Get all active sessions for user */
-const getActiveSessions = async (userId: number): Promise<Session[]> => {
-  return await findActiveSessionsByUserId(userId);
+/** Find all active sessions for a user */
+const findActiveSessionsByUserId = async (userId: number): Promise<Session[]> => {
+  return await dbAll<Session>(
+    "SELECT id, device, ip, user_agent, created_at, expires_at FROM sessions WHERE user_id = ? AND expires_at > datetime('now')",
+    [userId],
+  );
 };
 
-/** Invalidate a session */
-const invalidateSession = async (sessionId: number): Promise<void> => {
-  await deleteSessionById(sessionId);
+/** Delete session by ID */
+const deleteSessionById = async (id: number): Promise<void> => {
+  await dbRun("DELETE FROM sessions WHERE id = ?", [id]);
 };
 
-/** Invalidate all sessions for a user */
-const invalidateAllUserSessions = async (userId: number): Promise<void> => {
-  await deleteSessionsByUserId(userId);
+/** Delete all sessions for a user */
+const deleteSessionsByUserId = async (userId: number): Promise<void> => {
+  await dbRun("DELETE FROM sessions WHERE user_id = ?", [userId]);
 };
 
 export {
-  SESSION_EXPIRY_DAYS,
-  createSession,
-  getActiveSessions,
-  invalidateSession,
-  invalidateAllUserSessions,
+  createSessionRecord,
+  findSessionById,
+  findActiveSessionById,
+  findActiveSessionsByUserId,
+  deleteSessionById,
+  deleteSessionsByUserId,
 };

@@ -1,11 +1,5 @@
 import { dbRun, dbGet } from "../config/db";
-
-interface User {
-  id: number;
-  email: string;
-  password_hash: string;
-  created_at: string;
-}
+import { User } from "../types";
 
 /** Find user by ID */
 const findUserById = async (id: number): Promise<User | undefined> => {
@@ -26,4 +20,4 @@ const createUser = async (email: string, passwordHash: string): Promise<number> 
   return result.lastID;
 };
 
-export { User, findUserById, findUserByEmail, createUser };
+export { findUserById, findUserByEmail, createUser };

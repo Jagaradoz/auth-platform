@@ -1,28 +1,17 @@
 import { Response } from "express";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { createRefreshToken } from "../models/refreshToken.model";
+import { dbRun, dbGet } from "../config/db";
+import { RefreshToken, UserPayload } from "../types";
 import logger from "../config/logger";
-
-interface UserPayload {
-  id: number;
-  email: string;
-  sessionId?: number;
-}
 
 const JWT_SECRET = process.env.JWT_SECRET || "jwtSecret";
 const ACCESS_TOKEN_EXPIRY_TIME = process.env.ACCESS_TOKEN_EXPIRY_TIME || "1h";
 const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS || "7", 10);
 
-/** Generate cryptographically secure refresh token */
-const generateRefreshToken = (): string => {
-  return crypto.randomBytes(32).toString("hex");
-};
-
-/** Hash refresh token using SHA-256 for secure storage */
-const hashRefreshToken = (token: string): string => {
-  return crypto.createHash("sha256").update(token).digest("hex");
-};
+// ============================================================================
+// Access Token Functions
+// ============================================================================
 
 /** Generate JWT access token */
 const generateAccessToken = (user: UserPayload): string => {
@@ -32,13 +21,62 @@ const generateAccessToken = (user: UserPayload): string => {
   });
 };
 
+// ============================================================================
+// Refresh Token Database Functions
+// ============================================================================
+
+/** Create a new refresh token and return the token ID */
+const createRefreshToken = async (
+  userId: number,
+  tokenHash: string,
+  sessionId: number,
+  expiresAt: string,
+): Promise<number> => {
+  const result = await dbRun(
+    "INSERT INTO refresh_tokens (user_id, token_hash, session_id, expires_at) VALUES (?, ?, ?, ?)",
+    [userId, tokenHash, sessionId, expiresAt],
+  );
+  return result.lastID;
+};
+
+/** Find refresh token by its hash */
+const findRefreshTokenByHash = async (tokenHash: string): Promise<RefreshToken | undefined> => {
+  return await dbGet<RefreshToken>("SELECT * FROM refresh_tokens WHERE token_hash = ?", [
+    tokenHash,
+  ]);
+};
+
+/** Delete refresh token by ID */
+const deleteRefreshTokenById = async (id: number): Promise<void> => {
+  await dbRun("DELETE FROM refresh_tokens WHERE id = ?", [id]);
+};
+
+/** Delete all refresh tokens for a session */
+const deleteRefreshTokensBySessionId = async (sessionId: number): Promise<void> => {
+  await dbRun("DELETE FROM refresh_tokens WHERE session_id = ?", [sessionId]);
+};
+
+/** Delete all refresh tokens for a user */
+const deleteRefreshTokensByUserId = async (userId: number): Promise<void> => {
+  await dbRun("DELETE FROM refresh_tokens WHERE user_id = ?", [userId]);
+};
+
+// ============================================================================
+// Refresh Token Helper Functions
+// ============================================================================
+
+/** Hash refresh token using SHA-256 for secure storage */
+const hashRefreshToken = (token: string): string => {
+  return crypto.createHash("sha256").update(token).digest("hex");
+};
+
 /** Issue refresh token - generates, stores in DB, sets cookie */
 const issueRefreshToken = async (
   res: Response,
   userId: number,
   sessionId: number,
 ): Promise<void> => {
-  const refreshToken = generateRefreshToken();
+  const refreshToken = crypto.randomBytes(32).toString("hex");
   const refreshTokenHash = hashRefreshToken(refreshToken);
   const expiresAt = new Date(
     Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
@@ -64,12 +102,16 @@ const clearRefreshTokenCookie = (res: Response): void => {
 };
 
 export {
-  UserPayload,
-  JWT_SECRET,
-  REFRESH_TOKEN_EXPIRY_DAYS,
-  generateRefreshToken,
-  hashRefreshToken,
+  // Access token
   generateAccessToken,
+  // Refresh token DB operations
+  createRefreshToken,
+  findRefreshTokenByHash,
+  deleteRefreshTokenById,
+  deleteRefreshTokensBySessionId,
+  deleteRefreshTokensByUserId,
+  // Refresh token helpers
+  hashRefreshToken,
   issueRefreshToken,
   clearRefreshTokenCookie,
 };

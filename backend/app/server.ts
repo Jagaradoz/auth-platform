@@ -5,10 +5,10 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import express, { Express } from "express";
 
-import authRoutes from "../routes/auth.route";
-import { initializeDatabase } from "../config/db";
 import logger from "../config/logger";
-import "../types";
+import initializeDatabase from "../config/db";
+
+import authRoutes from "../routes/auth.route";
 
 const PORT: number = parseInt(process.env.PORT || "3000", 10);
 const app: Express = express();

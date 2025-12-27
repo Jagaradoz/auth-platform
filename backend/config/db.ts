@@ -86,5 +86,5 @@ const initializeDatabase = (): void => {
   `);
 };
 
-export { dbRun, dbGet, dbAll, initializeDatabase };
-export default db;
+export { dbRun, dbGet, dbAll };
+export default initializeDatabase;

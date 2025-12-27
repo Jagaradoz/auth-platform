@@ -1,16 +1,30 @@
 import { Request, Response } from "express";
-import * as authService from "../services/auth.service";
-import * as tokenService from "../services/token.service";
-import * as sessionService from "../services/session.service";
-import { deleteRefreshTokenById } from "../models/refreshToken.model";
+import bcrypt from "bcryptjs";
+import { findUserById, findUserByEmail, createUser } from "../services/user.service";
+import {
+  createSessionRecord,
+  findActiveSessionById,
+  findActiveSessionsByUserId,
+} from "../services/session.service";
+import {
+  generateAccessToken,
+  findRefreshTokenByHash,
+  deleteRefreshTokenById,
+  hashRefreshToken,
+  issueRefreshToken,
+  clearRefreshTokenCookie,
+} from "../services/token.service";
 import { registerSchema, loginSchema } from "../config/validation";
 import logger from "../config/logger";
+
+const SESSION_EXPIRY_DAYS = parseInt(process.env.SESSION_EXPIRY_DAYS || "7", 10);
 
 // @route   POST /api/auth/register
 // @desc    Register a new user with email and password
 // @access  Public
 const register = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Validate inputs
     const validation = registerSchema.safeParse(req.body);
     if (!validation.success) {
       const errorMessage = validation.error.issues[0].message;
@@ -20,18 +34,26 @@ const register = async (req: Request, res: Response): Promise<void> => {
     }
 
     const { email, password } = validation.data;
-    const { userId } = await authService.registerUser(email, password);
 
+    // Check if user exists
+    const existingUser = await findUserByEmail(email);
+    if (existingUser) {
+      logger.warn(`Registration attempt with existing email: ${email}`);
+      res.status(400).json({ message: "User with this email already exists" });
+      return;
+    }
+
+    // Hash password and create user
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+    const userId = await createUser(email, passwordHash);
+
+    logger.info(`New user registered: ${email} (ID: ${userId})`);
     res.status(201).json({
       message: "User registered successfully",
       userId,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "User with this email already exists") {
-      logger.warn(`Registration attempt with existing email: ${req.body.email}`);
-      res.status(400).json({ message: error.message });
-      return;
-    }
     logger.error("Registration error:", error);
     res.status(500).json({ message: "Server error during registration" });
   }
@@ -42,6 +64,7 @@ const register = async (req: Request, res: Response): Promise<void> => {
 // @access  Public
 const login = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Validate inputs
     const validation = loginSchema.safeParse(req.body);
     if (!validation.success) {
       const errorMessage = validation.error.issues[0].message;
@@ -51,22 +74,49 @@ const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const { email, password } = validation.data;
+
+    // Authenticate user
+    const user = await findUserByEmail(email);
+    if (!user) {
+      logger.warn(`Failed login attempt for: ${email}`);
+      res.status(401).json({ message: "Invalid credentials" });
+      return;
+    }
+
+    // Check if password is correct
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      logger.warn(`Failed login attempt for: ${email}`);
+      res.status(401).json({ message: "Invalid credentials" });
+      return;
+    }
+
+    // Create a new session
     const metadata = {
       device: (req.headers["x-device"] as string) || "Unknown",
       ip: req.ip || req.socket.remoteAddress || "Unknown",
       userAgent: req.headers["user-agent"] || "Unknown",
     };
+    const expiresAt = new Date(
+      Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const sessionId = await createSessionRecord(
+      user.id,
+      metadata.device,
+      metadata.ip,
+      metadata.userAgent,
+      expiresAt,
+    );
 
-    const { user, sessionId } = await authService.authenticateUser(email, password, metadata);
-
-    const accessToken = tokenService.generateAccessToken({
+    // Generate access and refresh tokens
+    const accessToken = generateAccessToken({
       id: user.id,
       email: user.email,
       sessionId,
     });
+    await issueRefreshToken(res, user.id, sessionId);
 
-    await tokenService.issueRefreshToken(res, user.id, sessionId);
-
+    logger.info(`User logged in successfully: ${email} (Session: ${sessionId})`);
     res.json({
       message: "Logged in successfully",
       token: accessToken,
@@ -76,11 +126,6 @@ const login = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "Invalid credentials") {
-      logger.warn(`Failed login attempt for: ${req.body.email}`);
-      res.status(401).json({ message: error.message });
-      return;
-    }
     logger.error("Login error:", error);
     res.status(500).json({ message: "Server error during login" });
   }
@@ -92,7 +137,7 @@ const login = async (req: Request, res: Response): Promise<void> => {
 const logout = async (req: Request, res: Response): Promise<void> => {
   try {
     logger.info(`User logged out: ${req.user?.email}`);
-    tokenService.clearRefreshTokenCookie(res);
+    clearRefreshTokenCookie(res);
     res.json({
       message: "Logout successful",
       user: req.user,
@@ -114,7 +159,7 @@ const getSessions = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const sessions = await sessionService.getActiveSessions(userId);
+    const sessions = await findActiveSessionsByUserId(userId);
 
     logger.info(`User ${req.user?.email} fetched ${sessions.length} active sessions`);
     res.json({
@@ -147,23 +192,47 @@ const refresh = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const result = await authService.validateRefreshToken(refreshToken);
-    if (!result) {
+    // Validate refresh token
+    const tokenHash = hashRefreshToken(refreshToken);
+    const storedToken = await findRefreshTokenByHash(tokenHash);
+    if (!storedToken) {
+      logger.warn("Invalid refresh token attempted");
       res.status(401).json({ message: "Invalid or expired refresh token" });
       return;
     }
 
-    const { user, sessionId, storedTokenId } = result;
+    if (new Date(storedToken.expires_at) < new Date()) {
+      await deleteRefreshTokenById(storedToken.id);
+      logger.warn("Expired refresh token attempted");
+      res.status(401).json({ message: "Invalid or expired refresh token" });
+      return;
+    }
 
-    await deleteRefreshTokenById(storedTokenId);
+    const session = await findActiveSessionById(storedToken.session_id);
+    if (!session) {
+      await deleteRefreshTokenById(storedToken.id);
+      logger.warn("Refresh token for expired session attempted");
+      res.status(401).json({ message: "Invalid or expired refresh token" });
+      return;
+    }
 
-    const newAccessToken = tokenService.generateAccessToken({
+    const user = await findUserById(storedToken.user_id);
+    if (!user) {
+      await deleteRefreshTokenById(storedToken.id);
+      logger.warn("Refresh token for non-existent user attempted");
+      res.status(401).json({ message: "Invalid or expired refresh token" });
+      return;
+    }
+
+    // Delete old token and issue new tokens
+    await deleteRefreshTokenById(storedToken.id);
+
+    const newAccessToken = generateAccessToken({
       id: user.id,
       email: user.email,
-      sessionId,
+      sessionId: storedToken.session_id,
     });
-
-    await tokenService.issueRefreshToken(res, user.id, sessionId);
+    await issueRefreshToken(res, user.id, storedToken.session_id);
 
     logger.info(`Token refreshed for user: ${user.email}`);
     res.json({
