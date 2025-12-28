@@ -1,11 +1,12 @@
 import sqlite3 from "sqlite3";
 import path from "path";
+import logger from "./logger";
 
 const db = new sqlite3.Database(path.join(__dirname, "..", "auth.db"), (err) => {
   if (err) {
-    console.error("Database connection error:", err.message);
+    logger.error("Database connection error:", err.message);
   } else {
-    console.log("Connected to SQLite database");
+    logger.info("Connected to SQLite database");
   }
 });
 
