@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsc && node dist/app/server.js",
     "dev": "nodemon --exec ts-node app/server.ts",
+    "env": "ts-node app/env.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
@@ -20,6 +21,7 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^7.0.12",
     "sqlite3": "^5.1.7",
     "winston": "^3.19.0",
     "zod": "^4.2.1"
@@ -31,6 +33,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.0.3",
+    "@types/nodemailer": "^7.0.4",
     "nodemon": "^3.1.11",
     "prettier": "^3.7.4",
     "ts-node": "^10.9.2",

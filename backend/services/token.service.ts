@@ -5,9 +5,9 @@ import { dbRun, dbGet } from "../config/db";
 import { RefreshToken, UserPayload } from "../types";
 import logger from "../config/logger";
 
-const JWT_SECRET = process.env.JWT_SECRET || "jwtSecret";
-const ACCESS_TOKEN_EXPIRY_TIME = process.env.ACCESS_TOKEN_EXPIRY_TIME || "1h";
-const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS || "7", 10);
+const JWT_SECRET = process.env.JWT_SECRET!;
+const ACCESS_TOKEN_EXPIRY_TIME = process.env.ACCESS_TOKEN_EXPIRY_TIME!;
+const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS!, 10);
 
 // ============================================================================
 // Access Token Functions

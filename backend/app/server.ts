@@ -10,7 +10,6 @@ import initializeDatabase from "../config/db";
 
 import authRoutes from "../routes/auth.route";
 
-const PORT: number = parseInt(process.env.PORT || "3000", 10);
 const app: Express = express();
 
 app.use(helmet());
@@ -29,8 +28,8 @@ initializeDatabase();
 
 app.use("/api/auth", authRoutes);
 
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
+app.listen(parseInt(process.env.PORT!, 10), () => {
+  logger.info(`Server running on port ${process.env.PORT}`);
 });
 
 export default app;

@@ -8,7 +8,9 @@ const router = Router();
 router.post("/register", registerLimiter, authController.register);
 router.post("/login", loginLimiter, authController.login);
 router.post("/logout", authenticateAccessToken, authController.logout);
+router.post("/logout-all", authenticateAccessToken, authController.logoutAll);
 router.get("/sessions", authenticateAccessToken, authController.getSessions);
 router.post("/refresh", authController.refresh);
+router.get("/verify/:token", authController.verifyEmail);
 
 export default router;

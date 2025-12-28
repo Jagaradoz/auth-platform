@@ -5,19 +5,31 @@ import {
   createSessionRecord,
   findActiveSessionById,
   findActiveSessionsByUserId,
+  deleteSessionById,
+  deleteSessionsByUserId,
 } from "../services/session.service";
 import {
   generateAccessToken,
   findRefreshTokenByHash,
   deleteRefreshTokenById,
+  deleteRefreshTokensBySessionId,
+  deleteRefreshTokensByUserId,
   hashRefreshToken,
   issueRefreshToken,
   clearRefreshTokenCookie,
 } from "../services/token.service";
+import {
+  createVerificationToken,
+  findVerificationTokenByHash,
+  hashVerificationToken,
+  deleteVerificationTokenById,
+  markUserAsVerified,
+} from "../services/verification.service";
+import { sendVerificationEmail } from "../services/email.service";
 import { registerSchema, loginSchema } from "../config/validation";
 import logger from "../config/logger";
 
-const SESSION_EXPIRY_DAYS = parseInt(process.env.SESSION_EXPIRY_DAYS || "7", 10);
+const SESSION_EXPIRY_DAYS = parseInt(process.env.SESSION_EXPIRY_DAYS!, 10);
 
 // @route   POST /api/auth/register
 // @desc    Register a new user with email and password
@@ -48,9 +60,13 @@ const register = async (req: Request, res: Response): Promise<void> => {
     const passwordHash = await bcrypt.hash(password, salt);
     const userId = await createUser(email, passwordHash);
 
-    logger.info(`New user registered: ${email} (ID: ${userId})`);
+    // Generate verification token and send email
+    const verificationToken = await createVerificationToken(userId);
+    const emailSent = await sendVerificationEmail(email, verificationToken);
+
+    logger.info(`New user registered: ${email} (ID: ${userId}), Email sent: ${emailSent}`);
     res.status(201).json({
-      message: "User registered successfully",
+      message: "User registered successfully. Please check your email to verify your account.",
       userId,
     });
   } catch (error) {
@@ -132,18 +148,54 @@ const login = async (req: Request, res: Response): Promise<void> => {
 };
 
 // @route   POST /api/auth/logout
-// @desc    Logout user and clear refresh token cookie
+// @desc    Logout user - invalidate current session and refresh token
 // @access  Private
 const logout = async (req: Request, res: Response): Promise<void> => {
   try {
-    logger.info(`User logged out: ${req.user?.email}`);
+    const sessionId = req.user?.sessionId;
+
+    if (sessionId) {
+      // Delete refresh tokens for this session first (due to FK constraint)
+      await deleteRefreshTokensBySessionId(sessionId);
+      // Delete the session
+      await deleteSessionById(sessionId);
+    }
+
+    logger.info(`User logged out: ${req.user?.email} (Session: ${sessionId})`);
     clearRefreshTokenCookie(res);
     res.json({
       message: "Logout successful",
-      user: req.user,
     });
   } catch (error) {
     logger.error("Logout error:", error);
+    res.status(500).json({ message: "Server error during logout" });
+  }
+};
+
+// @route   POST /api/auth/logout-all
+// @desc    Logout user from all sessions - invalidate all sessions and refresh tokens
+// @access  Private
+const logoutAll = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ message: "User not found" });
+      return;
+    }
+
+    // Delete all refresh tokens for the user first (due to FK constraint)
+    await deleteRefreshTokensByUserId(userId);
+    // Delete all sessions for the user
+    await deleteSessionsByUserId(userId);
+
+    logger.info(`User logged out from all sessions: ${req.user?.email}`);
+    clearRefreshTokenCookie(res);
+    res.json({
+      message: "Logged out from all sessions successfully",
+    });
+  } catch (error) {
+    logger.error("Logout all error:", error);
     res.status(500).json({ message: "Server error during logout" });
   }
 };
@@ -245,4 +297,55 @@ const refresh = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export { register, login, logout, getSessions, refresh };
+// @route   GET /api/auth/verify/:token
+// @desc    Verify user email with token
+// @access  Public
+const verifyEmail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      res.status(400).json({ message: "Verification token is required" });
+      return;
+    }
+
+    // Find token hash in database
+    const tokenHash = hashVerificationToken(token);
+    const storedToken = await findVerificationTokenByHash(tokenHash);
+
+    if (!storedToken) {
+      logger.warn("Invalid verification token attempted");
+      res.status(400).json({ message: "Invalid or expired verification token" });
+      return;
+    }
+
+    // Check if token is expired
+    if (new Date(storedToken.expires_at) < new Date()) {
+      await deleteVerificationTokenById(storedToken.id);
+      logger.warn("Expired verification token attempted");
+      res.status(400).json({ message: "Verification token has expired" });
+      return;
+    }
+
+    // Get user to verify they exist
+    const user = await findUserById(storedToken.user_id);
+    if (!user) {
+      await deleteVerificationTokenById(storedToken.id);
+      logger.warn("Verification token for non-existent user");
+      res.status(400).json({ message: "User not found" });
+      return;
+    }
+
+    // Mark user as verified and delete token
+    await markUserAsVerified(storedToken.user_id);
+    await deleteVerificationTokenById(storedToken.id);
+
+    logger.info(`Email verified for user: ${user.email}`);
+    res.json({ message: "Email verified successfully. You can now log in." });
+  } catch (error) {
+    logger.error("Email verification error:", error);
+    res.status(500).json({ message: "Server error during email verification" });
+  }
+};
+
+export { register, login, logout, logoutAll, getSessions, refresh, verifyEmail };

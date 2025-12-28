@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { UserPayload } from "../types";
 import logger from "../config/logger";
 
-const JWT_SECRET = process.env.JWT_SECRET || "jwtSecret";
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 /** Verify JWT access token and attach user to request */
 const authenticateAccessToken = (req: Request, res: Response, next: NextFunction): void => {

@@ -3,6 +3,7 @@ interface User {
   id: number;
   email: string;
   password_hash: string;
+  email_verified: number; // 0 = false, 1 = true (SQLite)
   created_at: string;
 }
 
@@ -27,6 +28,15 @@ interface RefreshToken {
   created_at: string;
 }
 
+/** Verification token entity from database */
+interface VerificationToken {
+  id: number;
+  user_id: number;
+  token_hash: string;
+  expires_at: string;
+  created_at: string;
+}
+
 /** JWT payload for access tokens */
 interface UserPayload {
   id: number;
@@ -42,4 +52,4 @@ declare global {
   }
 }
 
-export { User, Session, RefreshToken, UserPayload };
+export { User, Session, RefreshToken, VerificationToken, UserPayload };
