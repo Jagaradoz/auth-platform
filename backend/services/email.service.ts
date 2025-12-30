@@ -18,26 +18,26 @@ const sendVerificationEmail = async (email: string, token: string): Promise<bool
         <head>
           <style>
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .button { 
-              display: inline-block; 
-              padding: 12px 24px; 
-              background-color: #4F46E5; 
-              color: white; 
-              text-decoration: none; 
-              border-radius: 6px; 
-              margin: 20px 0;
-            }
-            .footer { margin-top: 30px; font-size: 12px; color: #666; }
+            .container { max-width: 600px; margin: 0 auto; padding: 30px; text-align: left; }
+            .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+            .brand-name { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+            h2 { text-align: left; color: #1a1a2e; }
+            p { text-align: left; color: #555; }
+            .button-container { text-align: center; margin: 25px 0; }
+            .button { display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999; text-align: center; }
           </style>
         </head>
         <body>
           <div class="container">
+            <div class="header">
+              <span class="brand-name">Auth System</span>
+            </div>
             <h2>Verify your email address</h2>
             <p>Thanks for registering! Please click the button below to verify your email address:</p>
-            <a href="${verificationUrl}" class="button">Verify Email</a>
-            <p>Or copy and paste this link into your browser:</p>
-            <p><a href="${verificationUrl}">${verificationUrl}</a></p>
+            <div class="button-container">
+              <a href="${verificationUrl}" class="button">Verify Email</a>
+            </div>
             <p>This link will expire in 24 hours.</p>
             <div class="footer">
               <p>If you didn't create an account, please ignore this email.</p>
@@ -47,7 +47,7 @@ const sendVerificationEmail = async (email: string, token: string): Promise<bool
         </html>
       `,
       text: `
-        Verify your email address
+        Auth System - Verify your email address
         
         Thanks for registering! Please click the link below to verify your email:
         ${verificationUrl}
@@ -81,26 +81,26 @@ const sendPasswordResetEmail = async (email: string, token: string): Promise<boo
         <head>
           <style>
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .button { 
-              display: inline-block; 
-              padding: 12px 24px; 
-              background-color: #4F46E5; 
-              color: white; 
-              text-decoration: none; 
-              border-radius: 6px; 
-              margin: 20px 0;
-            }
-            .footer { margin-top: 30px; font-size: 12px; color: #666; }
+            .container { max-width: 600px; margin: 0 auto; padding: 30px; text-align: left; }
+            .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+            .brand-name { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+            h2 { text-align: left; color: #1a1a2e; }
+            p { text-align: left; color: #555; }
+            .button-container { text-align: center; margin: 25px 0; }
+            .button { display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999; text-align: center; }
           </style>
         </head>
         <body>
           <div class="container">
+            <div class="header">
+              <span class="brand-name">Auth System</span>
+            </div>
             <h2>Reset your password</h2>
             <p>You requested to reset your password. Click the button below to set a new password:</p>
-            <a href="${resetUrl}" class="button">Reset Password</a>
-            <p>Or copy and paste this link into your browser:</p>
-            <p><a href="${resetUrl}">${resetUrl}</a></p>
+            <div class="button-container">
+              <a href="${resetUrl}" class="button">Reset Password</a>
+            </div>
             <p>This link will expire in 1 hour.</p>
             <div class="footer">
               <p>If you didn't request a password reset, please ignore this email.</p>
@@ -110,7 +110,7 @@ const sendPasswordResetEmail = async (email: string, token: string): Promise<boo
         </html>
       `,
       text: `
-        Reset your password
+        Auth System - Reset your password
         
         You requested to reset your password. Click the link below to set a new password:
         ${resetUrl}

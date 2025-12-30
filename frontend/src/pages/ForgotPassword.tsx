@@ -90,16 +90,17 @@ const ForgotPassword = () => {
           {/* Form */}
           {status !== "success" && (
             <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label className="form-label small fw-medium">Email Address</label>
+              <div className="form-floating mb-4">
                 <input
                   type="email"
-                  className="form-control form-control-lg"
-                  placeholder="Enter your email"
+                  className="form-control"
+                  id="email"
+                  placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
                 />
+                <label htmlFor="email">Email</label>
               </div>
 
               <button
@@ -116,7 +117,7 @@ const ForgotPassword = () => {
               >
                 {isLoading ? (
                   <>
-                    <Loader2 size={18} className="animate-spin" />
+                    <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
                     Sending...
                   </>
                 ) : (
@@ -139,6 +140,14 @@ const ForgotPassword = () => {
           </div>
         </div>
       </div>
+
+      {/* Spinner animation */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

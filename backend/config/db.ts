@@ -51,21 +51,18 @@ const dbAll = <T>(sql: string, params: unknown[] = []): Promise<T[]> => {
 
 /** Initialize tables */
 const initializeDatabase = (): void => {
+  // Users
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
+      password TEXT NOT NULL,
       email_verified INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  // Add email_verified column if it doesn't exist (for existing databases)
-  db.run(`ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0`, (err) => {
-    // Ignore error if column already exists
-  });
-
+  // Sessions
   db.run(`
     CREATE TABLE IF NOT EXISTS sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,11 +76,12 @@ const initializeDatabase = (): void => {
     )
   `);
 
+  // Refresh Tokens
   db.run(`
     CREATE TABLE IF NOT EXISTS refresh_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      token_hash TEXT NOT NULL,
+      token TEXT NOT NULL,
       session_id INTEGER NOT NULL,
       expires_at DATETIME NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -92,22 +90,24 @@ const initializeDatabase = (): void => {
     )
   `);
 
+  // Email Verification Tokens
   db.run(`
-    CREATE TABLE IF NOT EXISTS verification_tokens (
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      token_hash TEXT NOT NULL,
+      token TEXT NOT NULL,
       expires_at DATETIME NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
+  // Password Reset Tokens
   db.run(`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      token_hash TEXT NOT NULL,
+      token TEXT NOT NULL,
       expires_at DATETIME NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

@@ -1,8 +1,8 @@
 import { dbRun, dbGet, dbAll } from "../config/db";
-import { Session } from "../types";
+import { Session } from "../types/session";
 
 /** Create a new session and return the session ID */
-const createSessionRecord = async (
+const createSession = async (
   userId: number,
   device: string,
   ip: string,
@@ -48,7 +48,7 @@ const deleteSessionsByUserId = async (userId: number): Promise<void> => {
 };
 
 export {
-  createSessionRecord,
+  createSession,
   findSessionById,
   findActiveSessionById,
   findActiveSessionsByUserId,

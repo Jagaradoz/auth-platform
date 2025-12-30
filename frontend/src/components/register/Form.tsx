@@ -156,21 +156,6 @@ const RegisterForm = ({
           )}
         </div>
 
-        {/* Terms Checkbox */}
-        <div className="mb-3">
-          <div className="form-check">
-            <input
-              type="checkbox"
-              className="form-check-input"
-              id="agreeTerms"
-              disabled={isLoading}
-            />
-            <label className="form-check-label" htmlFor="agreeTerms">
-              I agree to the Terms of Service
-            </label>
-          </div>
-        </div>
-
         {/* Feedback Message (Success/Error) */}
         {feedback.message && (
           <div

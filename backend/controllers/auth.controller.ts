@@ -1,46 +1,16 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import {
-  findUserById,
-  findUserByEmail,
-  createUser,
-  updateUserPassword,
-} from "../services/user.service";
-import {
-  createSessionRecord,
-  findActiveSessionById,
-  findActiveSessionsByUserId,
-  deleteSessionById,
-  deleteSessionsByUserId,
-} from "../services/session.service";
-import {
-  generateAccessToken,
-  findRefreshTokenByHash,
-  deleteRefreshTokenById,
-  deleteRefreshTokensBySessionId,
-  deleteRefreshTokensByUserId,
-  hashRefreshToken,
-  issueRefreshToken,
-  clearRefreshTokenCookie,
-} from "../services/token.service";
-import {
-  createVerificationToken,
-  findVerificationTokenByHash,
-  hashVerificationToken,
-  deleteVerificationTokenById,
-  markUserAsVerified,
-} from "../services/verification.service";
-import {
-  createPasswordResetToken,
-  findPasswordResetTokenByHash,
-  hashResetToken,
-  deletePasswordResetTokenById,
-} from "../services/passwordReset.service";
-import { sendVerificationEmail, sendPasswordResetEmail } from "../services/email.service";
+import * as userService from "../services/user.service";
+import * as sessionService from "../services/session.service";
+import * as tokenService from "../services/token.service";
+import * as verificationService from "../services/verification.service";
+import * as passwordResetService from "../services/password-reset.service";
+import * as emailService from "../services/email.service";
 import { registerSchema, loginSchema } from "../config/validation";
 import logger from "../config/logger";
 
 const SESSION_EXPIRY_DAYS = parseInt(process.env.SESSION_EXPIRY_DAYS!, 10);
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // @route   POST /api/auth/register
 // @desc    Register a new user with email and password
@@ -59,7 +29,7 @@ const register = async (req: Request, res: Response): Promise<void> => {
     const { email, password } = validation.data;
 
     // Check if user exists
-    const existingUser = await findUserByEmail(email);
+    const existingUser = await userService.findUserByEmail(email);
     if (existingUser) {
       logger.warn(`Registration attempt with existing email: ${email}`);
       res.status(400).json({ message: "User with this email already exists" });
@@ -69,11 +39,11 @@ const register = async (req: Request, res: Response): Promise<void> => {
     // Hash password and create user
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
-    const userId = await createUser(email, passwordHash);
+    const userId = await userService.createUser(email, passwordHash);
 
     // Generate verification token and send email
-    const verificationToken = await createVerificationToken(userId);
-    const emailSent = await sendVerificationEmail(email, verificationToken);
+    const plainToken = await verificationService.createVerificationToken(userId);
+    const emailSent = await emailService.sendVerificationEmail(email, plainToken);
 
     logger.info(`New user registered: ${email} (ID: ${userId}), Email sent: ${emailSent}`);
     res.status(201).json({
@@ -103,7 +73,7 @@ const login = async (req: Request, res: Response): Promise<void> => {
     const { email, password } = validation.data;
 
     // Authenticate user
-    const user = await findUserByEmail(email);
+    const user = await userService.findUserByEmail(email);
     if (!user) {
       logger.warn(`Failed login attempt for: ${email}`);
       res.status(401).json({ message: "Invalid credentials" });
@@ -111,7 +81,7 @@ const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Check if password is correct
-    const isMatch = await bcrypt.compare(password, user.password_hash);
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       logger.warn(`Failed login attempt for: ${email}`);
       res.status(401).json({ message: "Invalid credentials" });
@@ -124,10 +94,8 @@ const login = async (req: Request, res: Response): Promise<void> => {
       ip: req.ip || req.socket.remoteAddress || "Unknown",
       userAgent: req.headers["user-agent"] || "Unknown",
     };
-    const expiresAt = new Date(
-      Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
-    ).toISOString();
-    const sessionId = await createSessionRecord(
+    const expiresAt = new Date(Date.now() + SESSION_EXPIRY_DAYS * MS_PER_DAY).toISOString();
+    const sessionId = await sessionService.createSession(
       user.id,
       metadata.device,
       metadata.ip,
@@ -136,12 +104,12 @@ const login = async (req: Request, res: Response): Promise<void> => {
     );
 
     // Generate access and refresh tokens
-    const accessToken = generateAccessToken({
+    const accessToken = tokenService.generateAccessToken({
       id: user.id,
       email: user.email,
       sessionId,
     });
-    await issueRefreshToken(res, user.id, sessionId);
+    await tokenService.createRefreshToken(res, user.id, sessionId);
 
     logger.info(`User logged in successfully: ${email} (Session: ${sessionId})`);
     res.json({
@@ -163,17 +131,22 @@ const login = async (req: Request, res: Response): Promise<void> => {
 // @access  Private
 const logout = async (req: Request, res: Response): Promise<void> => {
   try {
-    const sessionId = req.user?.sessionId;
+    // Check if user is authenticated
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ message: "User not found" });
+      return;
+    }
 
+    const sessionId = req.user?.sessionId;
     if (sessionId) {
-      // Delete refresh tokens for this session first (due to FK constraint)
-      await deleteRefreshTokensBySessionId(sessionId);
-      // Delete the session
-      await deleteSessionById(sessionId);
+      // Delete refresh tokens and session respectively
+      await tokenService.deleteRefreshTokensBySessionId(sessionId);
+      await sessionService.deleteSessionById(sessionId);
     }
 
     logger.info(`User logged out: ${req.user?.email} (Session: ${sessionId})`);
-    clearRefreshTokenCookie(res);
+    tokenService.clearRefreshTokenCookie(res);
     res.json({
       message: "Logout successful",
     });
@@ -188,20 +161,19 @@ const logout = async (req: Request, res: Response): Promise<void> => {
 // @access  Private
 const logoutAll = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Check if user is authenticated
     const userId = req.user?.id;
-
     if (!userId) {
       res.status(401).json({ message: "User not found" });
       return;
     }
 
-    // Delete all refresh tokens for the user first (due to FK constraint)
-    await deleteRefreshTokensByUserId(userId);
-    // Delete all sessions for the user
-    await deleteSessionsByUserId(userId);
+    // Delete refresh tokens and session respectively
+    await tokenService.deleteRefreshTokensByUserId(userId);
+    await sessionService.deleteSessionsByUserId(userId);
 
     logger.info(`User logged out from all sessions: ${req.user?.email}`);
-    clearRefreshTokenCookie(res);
+    tokenService.clearRefreshTokenCookie(res);
     res.json({
       message: "Logged out from all sessions successfully",
     });
@@ -216,13 +188,14 @@ const logoutAll = async (req: Request, res: Response): Promise<void> => {
 // @access  Private
 const getSessions = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Check if user is authenticated
     const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ message: "User not found" });
       return;
     }
 
-    const sessions = await findActiveSessionsByUserId(userId);
+    const sessions = await sessionService.findActiveSessionsByUserId(userId);
 
     logger.info(`User ${req.user?.email} fetched ${sessions.length} active sessions`);
     res.json({
@@ -247,55 +220,58 @@ const getSessions = async (req: Request, res: Response): Promise<void> => {
 // @access  Public
 const refresh = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Check if refresh token is provided
     const refreshToken = req.cookies?.refreshToken;
-
     if (!refreshToken) {
       logger.warn("Refresh attempt without token");
       res.status(401).json({ message: "Refresh token not provided" });
       return;
     }
 
-    // Validate refresh token
-    const tokenHash = hashRefreshToken(refreshToken);
-    const storedToken = await findRefreshTokenByHash(tokenHash);
+    // Check if refresh token exists
+    const hashedToken = tokenService.hashRefreshToken(refreshToken);
+    const storedToken = await tokenService.findRefreshTokenByHash(hashedToken);
     if (!storedToken) {
       logger.warn("Invalid refresh token attempted");
       res.status(401).json({ message: "Invalid or expired refresh token" });
       return;
     }
 
+    // Check if refresh token is expired
     if (new Date(storedToken.expires_at) < new Date()) {
-      await deleteRefreshTokenById(storedToken.id);
+      await tokenService.deleteRefreshTokenById(storedToken.id);
       logger.warn("Expired refresh token attempted");
       res.status(401).json({ message: "Invalid or expired refresh token" });
       return;
     }
 
-    const session = await findActiveSessionById(storedToken.session_id);
+    // Check if session exists
+    const session = await sessionService.findActiveSessionById(storedToken.session_id);
     if (!session) {
-      await deleteRefreshTokenById(storedToken.id);
+      await tokenService.deleteRefreshTokenById(storedToken.id);
       logger.warn("Refresh token for expired session attempted");
       res.status(401).json({ message: "Invalid or expired refresh token" });
       return;
     }
 
-    const user = await findUserById(storedToken.user_id);
+    // Check if user exists
+    const user = await userService.findUserById(storedToken.user_id);
     if (!user) {
-      await deleteRefreshTokenById(storedToken.id);
+      await tokenService.deleteRefreshTokenById(storedToken.id);
       logger.warn("Refresh token for non-existent user attempted");
       res.status(401).json({ message: "Invalid or expired refresh token" });
       return;
     }
 
     // Delete old token and issue new tokens
-    await deleteRefreshTokenById(storedToken.id);
+    await tokenService.deleteRefreshTokenById(storedToken.id);
 
-    const newAccessToken = generateAccessToken({
+    const newAccessToken = tokenService.generateAccessToken({
       id: user.id,
       email: user.email,
       sessionId: storedToken.session_id,
     });
-    await issueRefreshToken(res, user.id, storedToken.session_id);
+    await tokenService.createRefreshToken(res, user.id, storedToken.session_id);
 
     logger.info(`Token refreshed for user: ${user.email}`);
     res.json({
@@ -313,17 +289,16 @@ const refresh = async (req: Request, res: Response): Promise<void> => {
 // @access  Public
 const verifyEmail = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Check if token is provided
     const { token } = req.params;
-
     if (!token) {
       res.status(400).json({ message: "Verification token is required" });
       return;
     }
 
-    // Find token hash in database
-    const tokenHash = hashVerificationToken(token);
-    const storedToken = await findVerificationTokenByHash(tokenHash);
-
+    // Check if token exists
+    const hashedToken = verificationService.hashVerificationToken(token);
+    const storedToken = await verificationService.findVerificationTokenByHash(hashedToken);
     if (!storedToken) {
       logger.warn("Invalid verification token attempted");
       res.status(400).json({ message: "Invalid or expired verification token" });
@@ -332,24 +307,24 @@ const verifyEmail = async (req: Request, res: Response): Promise<void> => {
 
     // Check if token is expired
     if (new Date(storedToken.expires_at) < new Date()) {
-      await deleteVerificationTokenById(storedToken.id);
+      await verificationService.deleteVerificationTokenById(storedToken.id);
       logger.warn("Expired verification token attempted");
       res.status(400).json({ message: "Verification token has expired" });
       return;
     }
 
-    // Get user to verify they exist
-    const user = await findUserById(storedToken.user_id);
+    // Check if user exists
+    const user = await userService.findUserById(storedToken.user_id);
     if (!user) {
-      await deleteVerificationTokenById(storedToken.id);
+      await verificationService.deleteVerificationTokenById(storedToken.id);
       logger.warn("Verification token for non-existent user");
       res.status(400).json({ message: "User not found" });
       return;
     }
 
     // Mark user as verified and delete token
-    await markUserAsVerified(storedToken.user_id);
-    await deleteVerificationTokenById(storedToken.id);
+    await verificationService.markUserAsVerified(storedToken.user_id);
+    await verificationService.deleteVerificationTokenById(storedToken.id);
 
     logger.info(`Email verified for user: ${user.email}`);
     res.json({ message: "Email verified successfully. You can now log in." });
@@ -364,25 +339,23 @@ const verifyEmail = async (req: Request, res: Response): Promise<void> => {
 // @access  Public
 const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Check if email is provided
     const { email } = req.body;
-
     if (!email) {
       res.status(400).json({ message: "Email is required" });
       return;
     }
 
-    // Always return success to prevent email enumeration
-    const user = await findUserByEmail(email);
-
+    // Check if user exists
+    const user = await userService.findUserByEmail(email);
     if (user) {
-      const token = await createPasswordResetToken(user.id);
-      await sendPasswordResetEmail(email, token);
+      const token = await passwordResetService.createPasswordResetToken(user.id);
+      await emailService.sendPasswordResetEmail(email, token);
       logger.info(`Password reset email sent to: ${email}`);
     }
 
-    // Same response whether user exists or not (security)
     res.json({
-      message: "If an account with that email exists, a password reset link has been sent.",
+      message: "Password reset link has been sent, Please check your email.",
     });
   } catch (error) {
     logger.error("Forgot password error:", error);
@@ -395,22 +368,22 @@ const forgotPassword = async (req: Request, res: Response): Promise<void> => {
 // @access  Public
 const resetPassword = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Check if token and password are provided
     const { token, password } = req.body;
-
     if (!token || !password) {
       res.status(400).json({ message: "Token and password are required" });
       return;
     }
 
+    // Validate password length
     if (password.length < 6) {
       res.status(400).json({ message: "Password must be at least 6 characters" });
       return;
     }
 
-    // Find token hash in database
-    const tokenHash = hashResetToken(token);
-    const storedToken = await findPasswordResetTokenByHash(tokenHash);
-
+    // Check if token exists
+    const hashedToken = passwordResetService.hashResetToken(token);
+    const storedToken = await passwordResetService.findPasswordResetTokenByHash(hashedToken);
     if (!storedToken) {
       logger.warn("Invalid password reset token attempted");
       res.status(400).json({ message: "Invalid or expired reset token" });
@@ -419,7 +392,7 @@ const resetPassword = async (req: Request, res: Response): Promise<void> => {
 
     // Check if token is expired
     if (new Date(storedToken.expires_at) < new Date()) {
-      await deletePasswordResetTokenById(storedToken.id);
+      await passwordResetService.deletePasswordResetTokenById(storedToken.id);
       logger.warn("Expired password reset token attempted");
       res.status(400).json({ message: "Reset token has expired" });
       return;
@@ -427,12 +400,12 @@ const resetPassword = async (req: Request, res: Response): Promise<void> => {
 
     // Hash new password and update user
     const passwordHash = await bcrypt.hash(password, 10);
-    await updateUserPassword(storedToken.user_id, passwordHash);
-    await deletePasswordResetTokenById(storedToken.id);
+    await userService.updateUserPassword(storedToken.user_id, passwordHash);
+    await passwordResetService.deletePasswordResetTokenById(storedToken.id);
 
     // Invalidate all sessions for security
-    await deleteRefreshTokensByUserId(storedToken.user_id);
-    await deleteSessionsByUserId(storedToken.user_id);
+    await tokenService.deleteRefreshTokensByUserId(storedToken.user_id);
+    await sessionService.deleteSessionsByUserId(storedToken.user_id);
 
     logger.info(`Password reset successful for user ID: ${storedToken.user_id}`);
     res.json({
@@ -449,16 +422,15 @@ const resetPassword = async (req: Request, res: Response): Promise<void> => {
 // @access  Public
 const resendVerification = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Check if email is provided
     const { email } = req.body;
-
     if (!email) {
       res.status(400).json({ message: "Email is required" });
       return;
     }
 
-    const user = await findUserByEmail(email);
-
-    // Don't reveal if user exists
+    // Check if user exists
+    const user = await userService.findUserByEmail(email);
     if (!user) {
       res.json({
         message: "If an account with that email exists, a verification email has been sent.",
@@ -473,8 +445,8 @@ const resendVerification = async (req: Request, res: Response): Promise<void> =>
     }
 
     // Create new verification token and send email
-    const token = await createVerificationToken(user.id);
-    await sendVerificationEmail(email, token);
+    const token = await verificationService.createVerificationToken(user.id);
+    await emailService.sendVerificationEmail(email, token);
 
     logger.info(`Verification email resent to: ${email}`);
     res.json({

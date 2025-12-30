@@ -136,38 +136,56 @@ const ResetPassword = () => {
           {/* Form */}
           {status !== "success" && (
             <form onSubmit={handleSubmit}>
-              <div className="mb-3">
-                <label className="form-label small fw-medium">New Password</label>
-                <div className="position-relative">
+              {/* Password */}
+              <div className="input-group mb-3">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary d-flex align-items-center"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  style={{ borderColor: "#dee2e6" }}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+                <div className="form-floating flex-grow-1">
                   <input
                     type={showPassword ? "text" : "password"}
-                    className="form-control form-control-lg"
+                    className="form-control"
+                    id="password"
                     placeholder="Enter new password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
+                    style={{ borderLeft: "none" }}
                   />
-                  <button
-                    type="button"
-                    className="btn position-absolute end-0 top-50 translate-middle-y me-2"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{ background: "none", border: "none" }}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
+                  <label htmlFor="password">New Password</label>
                 </div>
               </div>
 
-              <div className="mb-4">
-                <label className="form-label small fw-medium">Confirm Password</label>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  className="form-control form-control-lg"
-                  placeholder="Confirm new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isLoading}
-                />
+              {/* Confirm Password */}
+              <div className="input-group mb-4">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary d-flex align-items-center"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  style={{ borderColor: "#dee2e6" }}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+                <div className="form-floating flex-grow-1">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    className="form-control"
+                    id="confirmPassword"
+                    placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={isLoading}
+                    style={{ borderLeft: "none" }}
+                  />
+                  <label htmlFor="confirmPassword">Confirm Password</label>
+                </div>
               </div>
 
               <button
@@ -184,7 +202,7 @@ const ResetPassword = () => {
               >
                 {isLoading ? (
                   <>
-                    <Loader2 size={18} className="animate-spin" />
+                    <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
                     Resetting...
                   </>
                 ) : (
@@ -212,6 +230,14 @@ const ResetPassword = () => {
           )}
         </div>
       </div>
+
+      {/* Spinner animation */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

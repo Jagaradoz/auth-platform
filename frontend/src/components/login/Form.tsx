@@ -57,19 +57,8 @@ const LoginForm = ({ formData, isLoading, feedback, onSubmit, onChange }: LoginF
           </div>
         </div>
 
-        {/* Remember Me & Forgot Password */}
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <div className="form-check mb-0">
-            <input
-              type="checkbox"
-              className="form-check-input"
-              id="rememberMe"
-              disabled={isLoading}
-            />
-            <label className="form-check-label" htmlFor="rememberMe">
-              Remember me
-            </label>
-          </div>
+        {/* Forgot Password */}
+        <div className="text-end mb-3">
           <Link
             to="/forgot-password"
             className="text-decoration-none small"

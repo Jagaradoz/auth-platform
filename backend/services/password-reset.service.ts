@@ -1,24 +1,13 @@
 import crypto from "crypto";
 import { dbRun, dbGet } from "../config/db";
+import { PasswordResetToken } from "../types/password-reset-token";
 
 const PASSWORD_RESET_EXPIRY_HOURS = parseInt(process.env.PASSWORD_RESET_EXPIRY_HOURS || "1", 10);
-
-interface PasswordResetToken {
-  id: number;
-  user_id: number;
-  token_hash: string;
-  expires_at: string;
-  created_at: string;
-}
+const MS_PER_HOUR = 60 * 60 * 1000;
 
 /** Hash reset token using SHA-256 */
 const hashResetToken = (token: string): string => {
   return crypto.createHash("sha256").update(token).digest("hex");
-};
-
-/** Generate a random reset token */
-const generateResetToken = (): string => {
-  return crypto.randomBytes(32).toString("hex");
 };
 
 /** Create a password reset token for a user */
@@ -27,28 +16,26 @@ const createPasswordResetToken = async (userId: number): Promise<string> => {
   await dbRun("DELETE FROM password_reset_tokens WHERE user_id = ?", [userId]);
 
   // Generate new token
-  const token = generateResetToken();
-  const tokenHash = hashResetToken(token);
-  const expiresAt = new Date(
-    Date.now() + PASSWORD_RESET_EXPIRY_HOURS * 60 * 60 * 1000,
-  ).toISOString();
+  const plainToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = hashResetToken(plainToken);
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRY_HOURS * MS_PER_HOUR).toISOString();
 
-  await dbRun(
-    "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
-    [userId, tokenHash, expiresAt],
-  );
+  await dbRun("INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)", [
+    userId,
+    hashedToken,
+    expiresAt,
+  ]);
 
-  return token;
+  return plainToken;
 };
 
 /** Find password reset token by its hash */
 const findPasswordResetTokenByHash = async (
   tokenHash: string,
 ): Promise<PasswordResetToken | undefined> => {
-  return await dbGet<PasswordResetToken>(
-    "SELECT * FROM password_reset_tokens WHERE token_hash = ?",
-    [tokenHash],
-  );
+  return await dbGet<PasswordResetToken>("SELECT * FROM password_reset_tokens WHERE token = ?", [
+    tokenHash,
+  ]);
 };
 
 /** Delete password reset token by ID */
@@ -63,7 +50,6 @@ const deletePasswordResetTokensByUserId = async (userId: number): Promise<void> 
 
 export {
   hashResetToken,
-  generateResetToken,
   createPasswordResetToken,
   findPasswordResetTokenByHash,
   deletePasswordResetTokenById,
