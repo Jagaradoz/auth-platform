@@ -1,9 +1,15 @@
+// Reacts
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+
+// Icons
 import { CheckCircle, XCircle, Loader } from "lucide-react";
+
+// Hooks
 import useAuth from "../hooks/useAuth";
 
 const Verify = () => {
+  // Hooks
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { verifyEmail } = useAuth();
@@ -11,6 +17,7 @@ const Verify = () => {
   const [message, setMessage] = useState("");
   const hasVerified = useRef(false);
 
+  // Effects
   useEffect(() => {
     const token = searchParams.get("token");
 
@@ -20,7 +27,6 @@ const Verify = () => {
       return;
     }
 
-    // Prevent double execution (React StrictMode runs effects twice)
     if (hasVerified.current) return;
     hasVerified.current = true;
 
@@ -43,6 +49,7 @@ const Verify = () => {
     verify();
   }, [searchParams, verifyEmail]);
 
+  // Functions
   const handleContinue = () => {
     navigate("/login");
   };

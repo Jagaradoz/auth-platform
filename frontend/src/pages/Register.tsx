@@ -10,7 +10,7 @@ import Form from "../components/register/Form";
 // Hooks
 import useAuth from "../hooks/useAuth";
 
-// Utils
+// Services
 import { validateField } from "../services/authValidation";
 
 // Constants

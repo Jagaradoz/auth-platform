@@ -1,43 +1,54 @@
+// Reacts
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, User } from "lucide-react";
+
+// Icons
+import { LogOut, User, Monitor, Smartphone, Globe, Clock, Trash2 } from "lucide-react";
+
+// Hooks
 import useAuth from "../hooks/useAuth";
 
 const Dashboard = () => {
+  // Hooks
   const navigate = useNavigate();
-  const { user, isAuthenticated, isLoading, logout, checkAuth } = useAuth();
+  const { user, logout, logoutAll, getSessions, sessions } = useAuth();
 
+  // Effects
   useEffect(() => {
-    checkAuth();
+    getSessions();
   }, []);
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      navigate("/login");
-    }
-  }, [isLoading, isAuthenticated, navigate]);
-
+  // Functions
   const handleLogout = async () => {
     await logout();
     navigate("/login");
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-vh-100 d-flex align-items-center justify-content-center bg-section">
-        <div className="spinner-border text-light" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
-      </div>
-    );
-  }
+  const handleLogoutAll = async () => {
+    await logoutAll();
+    navigate("/login");
+  };
 
-  if (!isAuthenticated) {
-    return null;
-  }
+  const getDeviceIcon = (userAgent: string) => {
+    const ua = userAgent.toLowerCase();
+    if (ua.includes("mobile") || ua.includes("android") || ua.includes("iphone")) {
+      return <Smartphone size={20} color="#7c3aed" />;
+    }
+    return <Monitor size={20} color="#7c3aed" />;
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   return (
-    <div className="min-vh-100 bg-section d-flex align-items-center justify-content-center">
+    <div className="min-vh-100 bg-section d-flex align-items-center justify-content-center py-5">
       <div style={{ width: "70%", maxWidth: "700px" }}>
         {/* Welcome Heading - Centered above card */}
         <div className="text-center text-white mb-4">
@@ -53,12 +64,12 @@ const Dashboard = () => {
             backdropFilter: "blur(10px)",
             boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.4)",
             borderRadius: "16px",
-            minHeight: "300px",
+            minHeight: "500px",
           }}
         >
           <div className="card-body p-4 d-flex flex-column" style={{ minHeight: "inherit" }}>
             {/* User Info */}
-            <div className="d-flex align-items-center gap-3">
+            <div className="d-flex align-items-center gap-3 mb-4">
               <div
                 className="d-flex align-items-center justify-content-center"
                 style={{
@@ -78,13 +89,73 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Spacer to push content below to bottom */}
+            {/* Active Sessions */}
+            <div className="mb-4">
+              <h6 className="fw-semibold mb-3" style={{ color: "#1a1a2e" }}>
+                <Globe size={16} className="me-2" style={{ color: "#7c3aed" }} />
+                Active Sessions ({sessions.length})
+              </h6>
+
+              <div className="d-flex flex-column gap-2">
+                {sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="d-flex align-items-center justify-content-between p-3 rounded"
+                    style={{
+                      background: session.isCurrent
+                        ? "linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(0, 81, 230, 0.1) 100%)"
+                        : "#f8f9fa",
+                      border: session.isCurrent
+                        ? "1px solid rgba(124, 58, 237, 0.3)"
+                        : "1px solid #e9ecef",
+                    }}
+                  >
+                    <div className="d-flex align-items-center gap-3">
+                      {getDeviceIcon(session.userAgent)}
+                      <div>
+                        <p className="mb-0 small fw-medium" style={{ color: "#1a1a2e" }}>
+                          {session.device}
+                          {session.isCurrent && (
+                            <span
+                              className="badge ms-2"
+                              style={{ background: "#7c3aed", fontSize: "10px" }}
+                            >
+                              Current
+                            </span>
+                          )}
+                        </p>
+                        <p className="mb-0 small text-muted">
+                          <Clock size={12} className="me-1" />
+                          {formatDate(session.createdAt)} • {session.ip}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Spacer + Divider + Logout Buttons - Stick to bottom */}
             <div className="mt-auto">
-              {/* Divider */}
               <hr className="my-4" style={{ borderColor: "#acacacff" }} />
 
-              {/* Logout Button - Right aligned */}
-              <div className="d-flex justify-content-end">
+              {/* Logout Buttons */}
+              <div className="d-flex justify-content-end gap-2">
+                <button
+                  onClick={handleLogoutAll}
+                  className="btn d-flex align-items-center gap-2"
+                  style={{
+                    background: "transparent",
+                    color: "#dc3545",
+                    padding: "10px 20px",
+                    fontWeight: 600,
+                    border: "1px solid #dc3545",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <Trash2 size={16} />
+                  Logout All
+                </button>
                 <button
                   onClick={handleLogout}
                   className="btn d-flex align-items-center gap-2"

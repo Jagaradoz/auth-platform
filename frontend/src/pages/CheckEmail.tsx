@@ -1,4 +1,7 @@
+// Reacts
 import { Link } from "react-router-dom";
+
+// Icons
 import { Mail, ArrowLeft } from "lucide-react";
 
 const CheckEmail = () => {
@@ -38,21 +41,6 @@ const CheckEmail = () => {
             We've sent a verification link to your email address. Please check your inbox and click
             the link to verify your account.
           </p>
-
-          {/* Info Box */}
-          <div
-            className="p-3 rounded mb-4"
-            style={{
-              background: "rgba(124, 58, 237, 0.1)",
-              border: "1px solid rgba(124, 58, 237, 0.2)",
-            }}
-          >
-            <p className="mb-0 small" style={{ color: "#7c3aed" }}>
-              <strong>Didn't receive the email?</strong>
-              <br />
-              Check your spam folder or try registering again.
-            </p>
-          </div>
 
           {/* Back to Login */}
           <Link

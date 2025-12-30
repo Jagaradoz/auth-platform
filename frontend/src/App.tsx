@@ -6,17 +6,23 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import CheckEmail from "./pages/CheckEmail";
 import Verify from "./pages/Verify";
+import ProtectedRoute from "./components/app/ProtectedRoute";
 
 function App() {
   return (
     <Router>
       <Routes>
+        {/* Public routes */}
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/check-email" element={<CheckEmail />} />
         <Route path="/verify" element={<Verify />} />
+
+        {/* Protected routes */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Route>
       </Routes>
     </Router>
   );

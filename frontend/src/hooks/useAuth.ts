@@ -1,10 +1,14 @@
+// Packages
 import { create } from "zustand";
 import axios from "axios";
+
+// Types
 import type { AuthState } from "../types/auth";
 
+// Constants
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL!;
 
-// Decode JWT payload without verification (verification happens server-side)
+// Functions
 const decodeJwtPayload = (token: string): { id: number; email: string } | null => {
   try {
     const payload = token.split(".")[1];
@@ -15,6 +19,7 @@ const decodeJwtPayload = (token: string): { id: number; email: string } | null =
   }
 };
 
+// Hook
 const useAuth = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
@@ -122,7 +127,7 @@ const useAuth = create<AuthState>((set, get) => ({
   },
 }));
 
-// Axios interceptor for auto-refresh on 401 responses
+// Interceptor
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
