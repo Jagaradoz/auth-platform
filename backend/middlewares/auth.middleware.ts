@@ -12,7 +12,7 @@ const authenticateAccessToken = (req: Request, res: Response, next: NextFunction
 
   if (!token) {
     logger.warn("Access denied: No token provided");
-    res.status(401).json({ message: "Access denied. No token provided." });
+    res.status(401).json({ message: "Access denied. No token provided.", code: "NO_TOKEN" });
     return;
   }
 
@@ -22,8 +22,13 @@ const authenticateAccessToken = (req: Request, res: Response, next: NextFunction
     logger.debug(`Access token verified for user: ${decoded.email}`);
     next();
   } catch (error) {
-    logger.warn("Invalid or expired access token attempted");
-    res.status(403).json({ message: "Invalid or expired token." });
+    if (error instanceof jwt.TokenExpiredError) {
+      logger.warn("Expired access token attempted");
+      res.status(401).json({ message: "Access token expired.", code: "TOKEN_EXPIRED" });
+    } else {
+      logger.warn("Invalid access token attempted");
+      res.status(401).json({ message: "Invalid access token.", code: "TOKEN_INVALID" });
+    }
     return;
   }
 };

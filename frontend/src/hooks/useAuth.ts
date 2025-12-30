@@ -122,4 +122,29 @@ const useAuth = create<AuthState>((set, get) => ({
   },
 }));
 
+// Axios interceptor for auto-refresh on 401 responses
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    const errorCode = error.response?.data?.code;
+
+    const isTokenError = errorCode === "TOKEN_EXPIRED" || errorCode === "TOKEN_INVALID";
+
+    if (error.response?.status === 401 && isTokenError && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      const success = await useAuth.getState().refresh();
+
+      if (success) {
+        const newToken = useAuth.getState().accessToken;
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return axios(originalRequest);
+      }
+    }
+
+    return Promise.reject(error);
+  },
+);
+
 export default useAuth;
