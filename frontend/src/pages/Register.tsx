@@ -7,7 +7,10 @@ import Header from "../components/register/Header";
 import Footer from "../components/register/Footer";
 import Form from "../components/register/Form";
 
-// Utils
+// Hooks
+import useAuth from "../hooks/useAuth";
+
+// Services
 import { validateField } from "../services/authValidation";
 
 // Constants
@@ -26,6 +29,7 @@ import type { FeedbackState } from "../types/ui";
 const Register = () => {
   // Hooks
   const navigate = useNavigate();
+  const { register } = useAuth();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [formData, setFormData] = useState<RegisterFormData>(initialFormState);
   const [errors, setErrors] = useState<ValidationErrors>(initialErrorState);
@@ -65,18 +69,8 @@ const Register = () => {
     setFeedback({ type: null, message: "" });
 
     try {
-      // TODO: Replace with actual API call
-      // const response = await axios.post('/api/auth/register', {
-      //   username: formData.username,
-      //   email: formData.email,
-      //   password: formData.password,
-      // });
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Redirect to dashboard on success
-      navigate("/dashboard");
+      await register(formData.email, formData.password);
+      navigate("/check-email");
     } catch (error) {
       const apiError = error as ApiError;
       const errorMessage =

@@ -7,6 +7,9 @@ import Header from "../components/login/Header";
 import Footer from "../components/login/Footer";
 import Form from "../components/login/Form";
 
+// Hooks
+import useAuth from "../hooks/useAuth";
+
 // Constants
 import { initialFormState, initialFeedbackState } from "../constants/loginFormDefaults";
 
@@ -18,6 +21,7 @@ import type { FeedbackState } from "../types/ui";
 const Login = () => {
   // Hooks
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [formData, setFormData] = useState<LoginFormData>(initialFormState);
   const [feedback, setFeedback] = useState<FeedbackState>(initialFeedbackState);
@@ -35,16 +39,7 @@ const Login = () => {
     setFeedback({ type: null, message: "" });
 
     try {
-      // TODO: Replace with actual API call
-      // const response = await axios.post('/api/auth/login', {
-      //   email: formData.email,
-      //   password: formData.password,
-      // });
-
-      // Simulate API call - throw error to test error message
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Redirect to dashboard on success
+      await login(formData.email, formData.password);
       navigate("/dashboard");
     } catch (error) {
       const apiError = error as ApiError;

@@ -1,5 +1,10 @@
+// Reacts
 import { useState } from "react";
+
+// Icons
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Check, X } from "lucide-react";
+
+// Types
 import type { RegisterFormData } from "../../types/forms";
 import type { RegisterFormProps } from "../../types/forms";
 
@@ -11,9 +16,11 @@ const RegisterForm = ({
   onSubmit,
   onChange,
 }: RegisterFormProps) => {
+  // Hooks
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
 
+  // Functions
   const getValidationClass = (fieldName: keyof RegisterFormData): string => {
     if (!formData[fieldName]) return ""; // No validation styling for empty fields
     return errors[fieldName] ? "is-invalid" : "is-valid";

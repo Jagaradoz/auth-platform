@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Auth platform backend with TypeScript",
+  "description": "Auth system backend with TypeScript",
   "main": "dist/app/server.js",
   "scripts": {
     "start": "tsc && node dist/app/server.js",

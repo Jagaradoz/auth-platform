@@ -1,10 +1,14 @@
+// Packages
 import { create } from "zustand";
 import axios from "axios";
+
+// Types
 import type { AuthState } from "../types/auth";
 
+// Constants
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL!;
 
-// Decode JWT payload without verification (verification happens server-side)
+// Functions
 const decodeJwtPayload = (token: string): { id: number; email: string } | null => {
   try {
     const payload = token.split(".")[1];
@@ -15,6 +19,7 @@ const decodeJwtPayload = (token: string): { id: number; email: string } | null =
   }
 };
 
+// Hook
 const useAuth = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
@@ -121,5 +126,30 @@ const useAuth = create<AuthState>((set, get) => ({
     set({ isLoading: false });
   },
 }));
+
+// Interceptor
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    const errorCode = error.response?.data?.code;
+
+    const isTokenError = errorCode === "TOKEN_EXPIRED" || errorCode === "TOKEN_INVALID";
+
+    if (error.response?.status === 401 && isTokenError && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      const success = await useAuth.getState().refresh();
+
+      if (success) {
+        const newToken = useAuth.getState().accessToken;
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return axios(originalRequest);
+      }
+    }
+
+    return Promise.reject(error);
+  },
+);
 
 export default useAuth;

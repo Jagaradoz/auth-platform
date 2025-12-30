@@ -15,7 +15,7 @@ const Home = () => {
                   textShadow: "2px 4px 8px rgba(0, 0, 0, 0.3)",
                 }}
               >
-                Auth Platform
+                Auth System
               </h1>
 
               {/* Badges */}

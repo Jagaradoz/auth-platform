@@ -1,3 +1,4 @@
+// Types
 import type { LoginFormData } from "../types/forms";
 import type { ValidationErrors } from "../types/validation";
 import type { FeedbackState } from "../types/ui";

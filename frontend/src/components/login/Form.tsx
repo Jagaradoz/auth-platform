@@ -1,8 +1,14 @@
+// Reacts
 import { useState } from "react";
+
+// Icons
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+
+// Types
 import type { LoginFormProps } from "../../types/forms";
 
 const LoginForm = ({ formData, isLoading, feedback, onSubmit, onChange }: LoginFormProps) => {
+  // Hooks
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
   return (

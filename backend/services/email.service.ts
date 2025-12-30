@@ -11,7 +11,7 @@ const sendVerificationEmail = async (email: string, token: string): Promise<bool
     await transporter.sendMail({
       from: process.env.SMTP_FROM,
       to: email,
-      subject: "Verify your email - Auth Platform",
+      subject: "Verify your email - Auth System",
       html: `
         <!DOCTYPE html>
         <html>

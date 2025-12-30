@@ -1,51 +1,84 @@
-import type { RegisterFormData, LoginFormData } from "../types/forms";
+// Packages
+import { z } from "zod";
+
+// Types
+import type { RegisterFormData } from "../types/forms";
 import type { ValidationErrors, ValidationResult } from "../types/validation";
 
+// Zod Schemas
+const emailSchema = z
+  .string()
+  .min(1, "Email is required")
+  .email("Please enter a valid email address");
+
+const passwordSchema = z
+  .string()
+  .min(1, "Password is required")
+  .min(6, "Password must be at least 6 characters");
+
+const registerSchema = z
+  .object({
+    email: emailSchema,
+    password: passwordSchema,
+    confirmPassword: z.string().min(1, "Please confirm your password"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+const loginSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, "Password is required"),
+});
+
+// Constants
 const strengthLabels: string[] = ["Very Weak", "Weak", "Fair", "Good", "Strong"];
 const strengthColors: string[] = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#10b981"];
 
-type FormData = RegisterFormData | LoginFormData;
-
-/** Checks if formData contains a password field (type guard). */
-const hasPassword = (formData: FormData): formData is FormData => {
-  return "password" in formData;
-};
-
-/** Validates a single form field based on field name and value. */
-const validateField = (name: string, value: string, formData?: FormData): string => {
-  switch (name) {
-    case "email":
-      if (!value) return "Email is required";
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Please enter a valid email address";
-      return "";
-    case "password":
-      if (!value) return "Password is required";
-      if (value.length < 6) return "Password must be at least 6 characters";
-      return "";
-    case "confirmPassword":
-      if (!value) return "Please confirm your password";
-      if (formData && hasPassword(formData) && value !== formData.password)
-        return "Passwords do not match";
-      return "";
-    default:
-      return "";
+// Functions
+const validateField = (name: string, value: string, formData?: RegisterFormData): string => {
+  try {
+    switch (name) {
+      case "email":
+        emailSchema.parse(value);
+        return "";
+      case "password":
+        passwordSchema.parse(value);
+        return "";
+      case "confirmPassword":
+        if (!value) return "Please confirm your password";
+        if (formData && value !== formData.password) return "Passwords do not match";
+        return "";
+      default:
+        return "";
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return error.issues[0]?.message || "Invalid value";
+    }
+    return "";
   }
 };
 
-/** Validates all form fields at once for submission. */
-const validateForm = (formData: FormData): ValidationResult => {
+const validateForm = (formData: RegisterFormData): ValidationResult => {
+  const result = registerSchema.safeParse(formData);
+
+  if (result.success) {
+    return { errors: {}, isValid: true };
+  }
+
   const errors: ValidationErrors = {};
-  (Object.keys(formData) as Array<keyof typeof formData>).forEach((field) => {
-    const error = validateField(field, formData[field], formData);
-    if (error) errors[field] = error;
+  result.error.issues.forEach((err: z.ZodIssue) => {
+    const field = err.path[0] as string;
+    if (!errors[field]) {
+      errors[field] = err.message;
+    }
   });
-  return {
-    errors,
-    isValid: Object.keys(errors).length === 0,
-  };
+
+  return { errors, isValid: false };
 };
 
-/** Calculates password strength score (0-5) based on complexity criteria. */
 const getPasswordStrength = (password: string): number => {
   let strength = 0;
   if (password.length >= 8) strength++;
@@ -57,4 +90,12 @@ const getPasswordStrength = (password: string): number => {
 };
 
 // Exports
-export { strengthLabels, strengthColors, validateField, validateForm, getPasswordStrength };
+export {
+  registerSchema,
+  loginSchema,
+  strengthLabels,
+  strengthColors,
+  validateField,
+  validateForm,
+  getPasswordStrength,
+};

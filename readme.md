@@ -3,6 +3,7 @@
 A full-stack authentication system implementing secure JWT-based authentication, including login, registration, and token refresh. It provides robust session management with the ability to view active sessions, log out individual devices, or revoke access across all devices. The system also includes email verification to ensure account integrity and security.
 
 ### Backend Techs
+
 - Node JS
 - Express JS
 - SQLite3
@@ -16,6 +17,7 @@ A full-stack authentication system implementing secure JWT-based authentication,
 - Winston
 
 ### Frontend Techs
+
 - React JS (Vite)
 - React Router
 - Zustand
@@ -30,8 +32,8 @@ A full-stack authentication system implementing secure JWT-based authentication,
 
 All authentication routes are prefixed with `/api/auth`.
 
-| Method | Endpoint         | Description                                     | Auth Required |
-| ------ | ---------------- | ----------------------------------------------- | ------------- |
+| Method | Endpoint                  | Description                                     | Auth Required |
+| ------ | ------------------------- | ----------------------------------------------- | ------------- |
 | `POST` | `/api/auth/register`      | Register a new user account                     | No            |
 | `POST` | `/api/auth/login`         | Login with email and password                   | No            |
 | `POST` | `/api/auth/logout`        | Logout current session                          | Yes           |
