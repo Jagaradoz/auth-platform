@@ -120,6 +120,18 @@ const useAuth = create<AuthState>((set, get) => ({
     await axios.get(`${BACKEND_URL}/api/auth/verify/${token}`);
   },
 
+  forgotPassword: async (email: string) => {
+    await axios.post(`${BACKEND_URL}/api/auth/forgot-password`, { email });
+  },
+
+  resetPassword: async (token: string, password: string) => {
+    await axios.post(`${BACKEND_URL}/api/auth/reset-password`, { token, password });
+  },
+
+  resendVerification: async (email: string) => {
+    await axios.post(`${BACKEND_URL}/api/auth/resend-verification`, { email });
+  },
+
   checkAuth: async () => {
     set({ isLoading: true });
     await get().refresh();

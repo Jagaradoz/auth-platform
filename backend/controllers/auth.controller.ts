@@ -1,6 +1,11 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { findUserById, findUserByEmail, createUser } from "../services/user.service";
+import {
+  findUserById,
+  findUserByEmail,
+  createUser,
+  updateUserPassword,
+} from "../services/user.service";
 import {
   createSessionRecord,
   findActiveSessionById,
@@ -25,7 +30,13 @@ import {
   deleteVerificationTokenById,
   markUserAsVerified,
 } from "../services/verification.service";
-import { sendVerificationEmail } from "../services/email.service";
+import {
+  createPasswordResetToken,
+  findPasswordResetTokenByHash,
+  hashResetToken,
+  deletePasswordResetTokenById,
+} from "../services/passwordReset.service";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../services/email.service";
 import { registerSchema, loginSchema } from "../config/validation";
 import logger from "../config/logger";
 
@@ -348,4 +359,142 @@ const verifyEmail = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export { register, login, logout, logoutAll, getSessions, refresh, verifyEmail };
+// @route   POST /api/auth/forgot-password
+// @desc    Request password reset email
+// @access  Public
+const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({ message: "Email is required" });
+      return;
+    }
+
+    // Always return success to prevent email enumeration
+    const user = await findUserByEmail(email);
+
+    if (user) {
+      const token = await createPasswordResetToken(user.id);
+      await sendPasswordResetEmail(email, token);
+      logger.info(`Password reset email sent to: ${email}`);
+    }
+
+    // Same response whether user exists or not (security)
+    res.json({
+      message: "If an account with that email exists, a password reset link has been sent.",
+    });
+  } catch (error) {
+    logger.error("Forgot password error:", error);
+    res.status(500).json({ message: "Server error during password reset request" });
+  }
+};
+
+// @route   POST /api/auth/reset-password
+// @desc    Reset password using token
+// @access  Public
+const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      res.status(400).json({ message: "Token and password are required" });
+      return;
+    }
+
+    if (password.length < 6) {
+      res.status(400).json({ message: "Password must be at least 6 characters" });
+      return;
+    }
+
+    // Find token hash in database
+    const tokenHash = hashResetToken(token);
+    const storedToken = await findPasswordResetTokenByHash(tokenHash);
+
+    if (!storedToken) {
+      logger.warn("Invalid password reset token attempted");
+      res.status(400).json({ message: "Invalid or expired reset token" });
+      return;
+    }
+
+    // Check if token is expired
+    if (new Date(storedToken.expires_at) < new Date()) {
+      await deletePasswordResetTokenById(storedToken.id);
+      logger.warn("Expired password reset token attempted");
+      res.status(400).json({ message: "Reset token has expired" });
+      return;
+    }
+
+    // Hash new password and update user
+    const passwordHash = await bcrypt.hash(password, 10);
+    await updateUserPassword(storedToken.user_id, passwordHash);
+    await deletePasswordResetTokenById(storedToken.id);
+
+    // Invalidate all sessions for security
+    await deleteRefreshTokensByUserId(storedToken.user_id);
+    await deleteSessionsByUserId(storedToken.user_id);
+
+    logger.info(`Password reset successful for user ID: ${storedToken.user_id}`);
+    res.json({
+      message: "Password reset successfully. You can now log in with your new password.",
+    });
+  } catch (error) {
+    logger.error("Reset password error:", error);
+    res.status(500).json({ message: "Server error during password reset" });
+  }
+};
+
+// @route   POST /api/auth/resend-verification
+// @desc    Resend verification email
+// @access  Public
+const resendVerification = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({ message: "Email is required" });
+      return;
+    }
+
+    const user = await findUserByEmail(email);
+
+    // Don't reveal if user exists
+    if (!user) {
+      res.json({
+        message: "If an account with that email exists, a verification email has been sent.",
+      });
+      return;
+    }
+
+    // Check if already verified
+    if (user.email_verified === 1) {
+      res.status(400).json({ message: "Email is already verified" });
+      return;
+    }
+
+    // Create new verification token and send email
+    const token = await createVerificationToken(user.id);
+    await sendVerificationEmail(email, token);
+
+    logger.info(`Verification email resent to: ${email}`);
+    res.json({
+      message: "If an account with that email exists, a verification email has been sent.",
+    });
+  } catch (error) {
+    logger.error("Resend verification error:", error);
+    res.status(500).json({ message: "Server error during resend verification" });
+  }
+};
+
+export {
+  register,
+  login,
+  logout,
+  logoutAll,
+  getSessions,
+  refresh,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
+  resendVerification,
+};

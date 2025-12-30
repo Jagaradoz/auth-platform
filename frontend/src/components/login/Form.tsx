@@ -1,5 +1,6 @@
 // Reacts
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 // Icons
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
@@ -56,9 +57,9 @@ const LoginForm = ({ formData, isLoading, feedback, onSubmit, onChange }: LoginF
           </div>
         </div>
 
-        {/* Remember Me */}
-        <div className="mb-3">
-          <div className="form-check">
+        {/* Remember Me & Forgot Password */}
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <div className="form-check mb-0">
             <input
               type="checkbox"
               className="form-check-input"
@@ -69,6 +70,13 @@ const LoginForm = ({ formData, isLoading, feedback, onSubmit, onChange }: LoginF
               Remember me
             </label>
           </div>
+          <Link
+            to="/forgot-password"
+            className="text-decoration-none small"
+            style={{ color: "#7c3aed" }}
+          >
+            Forgot Password?
+          </Link>
         </div>
 
         {/* Error Message */}

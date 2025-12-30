@@ -20,4 +20,9 @@ const createUser = async (email: string, passwordHash: string): Promise<number> 
   return result.lastID;
 };
 
-export { findUserById, findUserByEmail, createUser };
+/** Update user password */
+const updateUserPassword = async (userId: number, passwordHash: string): Promise<void> => {
+  await dbRun("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, userId]);
+};
+
+export { findUserById, findUserByEmail, createUser, updateUserPassword };

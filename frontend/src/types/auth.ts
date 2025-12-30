@@ -28,6 +28,9 @@ interface AuthState {
   checkAuth: () => Promise<void>;
   getSessions: () => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, password: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
 }
 
 export type { User, Session, AuthState };
