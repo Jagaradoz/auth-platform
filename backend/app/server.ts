@@ -12,6 +12,8 @@ import authRoutes from "../routes/auth.route";
 
 const app: Express = express();
 
+app.set("trust proxy", 1);
+
 app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
