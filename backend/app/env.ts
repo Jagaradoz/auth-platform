@@ -24,6 +24,9 @@ const envSchema = z.object({
   SMTP_PASS: z.string(),
   SMTP_FROM: z.string(),
   VERIFICATION_TOKEN_EXPIRY_HOURS: z.string(),
+
+  // Reset (for demo/showcase only)
+  RESET_SECRET: z.string(),
 });
 
 const allVars = [
@@ -41,6 +44,7 @@ const allVars = [
   "SMTP_PASS",
   "SMTP_FROM",
   "VERIFICATION_TOKEN_EXPIRY_HOURS",
+  "RESET_SECRET",
 ];
 
 const colors = {

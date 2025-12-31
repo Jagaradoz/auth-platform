@@ -6,6 +6,7 @@ import * as tokenService from "../services/token.service";
 import * as verificationService from "../services/verification.service";
 import * as passwordResetService from "../services/password-reset.service";
 import * as emailService from "../services/email.service";
+import * as resetService from "../services/reset.service";
 import { registerSchema, loginSchema } from "../config/validation";
 import logger from "../config/logger";
 
@@ -458,6 +459,29 @@ const resendVerification = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
+// @route   GET /api/auth/reset
+// @desc    Reset database (clear all tables)
+// @access  Public but protected by secret key
+const resetDb = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const key = req.query.key as string | undefined;
+
+    if (!resetService.validateResetKey(key)) {
+      logger.warn("Invalid reset key attempted");
+      res.status(403).json({ message: "Invalid reset key" });
+      return;
+    }
+
+    await resetService.resetDatabase();
+
+    logger.info("Database reset successfully");
+    res.json({ message: "Database reset successfully. All data has been cleared." });
+  } catch (error) {
+    logger.error("Database reset error:", error);
+    res.status(500).json({ message: "Server error during database reset" });
+  }
+};
+
 export {
   register,
   login,
@@ -469,4 +493,5 @@ export {
   forgotPassword,
   resetPassword,
   resendVerification,
+  resetDb,
 };
