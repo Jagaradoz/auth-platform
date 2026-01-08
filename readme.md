@@ -36,6 +36,8 @@ A production-ready full-stack authentication system built with modern security p
 
 ### API Routes
 
+#### Authentication Routes
+
 All authentication routes are prefixed with `/api/auth`.
 
 | Method | Endpoint                        | Description                                     | Auth Required |
@@ -50,6 +52,13 @@ All authentication routes are prefixed with `/api/auth`.
 | `POST` | `/api/auth/forgot-password`     | Request password reset email                    | No            |
 | `POST` | `/api/auth/reset-password`      | Reset password with token                       | No            |
 | `POST` | `/api/auth/resend-verification` | Resend verification email                       | No            |
+
+#### System Routes
+
+| Method | Endpoint      | Description                      | Auth Required |
+| ------ | ------------- | -------------------------------- | ------------- |
+| `GET`  | `/api/health` | Health check endpoint for Render | No            |
+| `GET`  | `/api/reset`  | Reset database (requires key)    | No            |
 
 ---
 

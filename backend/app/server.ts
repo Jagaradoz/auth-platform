@@ -9,6 +9,7 @@ import logger from "../config/logger";
 import initializeDatabase from "../config/db";
 
 import authRoutes from "../routes/auth.route";
+import systemRoutes from "../routes/system.route";
 
 const app: Express = express();
 
@@ -29,6 +30,7 @@ app.use(
 initializeDatabase();
 
 app.use("/api/auth", authRoutes);
+app.use("/api", systemRoutes);
 
 app.listen(parseInt(process.env.PORT!, 10), () => {
   logger.info(`Server running on port ${process.env.PORT}`);
