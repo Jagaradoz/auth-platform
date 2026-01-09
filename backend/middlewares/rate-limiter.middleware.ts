@@ -1,4 +1,5 @@
 import rateLimit from "express-rate-limit";
+import logger from "../config/logger";
 
 /** Rate limiter for login: 50 attempts per 15 minutes */
 const loginLimiter = rateLimit({
@@ -18,4 +19,17 @@ const registerLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-export { loginLimiter, registerLimiter };
+/** Rate limiter for reset: 3 attempts per 15 minutes */
+const resetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: { message: "Too many reset attempts. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res, _next, options) => {
+    logger.warn(`Reset rate limit exceeded for IP: ${req.ip}`);
+    res.status(429).json(options.message);
+  },
+});
+
+export { loginLimiter, registerLimiter, resetLimiter };

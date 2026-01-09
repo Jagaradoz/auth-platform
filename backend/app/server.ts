@@ -30,7 +30,7 @@ app.use(
 initializeDatabase();
 
 app.use("/api/auth", authRoutes);
-app.use("/api", systemRoutes);
+app.use("/api/system", systemRoutes);
 
 app.listen(parseInt(process.env.PORT!, 10), () => {
   logger.info(`Server running on port ${process.env.PORT}`);
